@@ -49,7 +49,7 @@ dubDb.exec(`
 const insertConfig = dubDb.prepare(`INSERT OR IGNORE INTO config (key, value) VALUES (?, ?)`)
 for (const [k, v] of [
   ['roas_threshold', '60'],
-  ['nc_threshold',   '10'],
+  ['nc_threshold',   '3'],
   ['lookback_days',  '40'],
   ['snooze_days',    '7'],
   ['max_snoozes',    '3'],
