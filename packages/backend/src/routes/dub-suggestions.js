@@ -10,8 +10,9 @@ const router = Router()
 const getPerfData = getSharedPerfData
 function invalidatePerfCache() { /* shared cache — no-op; perf-analysis manages it */ }
 
-// facts: [adIdx, dayIdx, spend, imp, clicks, lpv, atc, purchases, conv_value, nc, ...]
-const F_SPEND = 2, F_CONV_VAL = 8, F_NC = 9, DELIVERY = 0.76
+// facts: [adIdx, dayIdx, spend(2), impr, clk, lpv, atc, pur, rev(8), nc(9), pp, v3s, sumv(12), pdp, atcbn, ncf]
+// ROAS uses 'Sum' (sumv = f[12]), same as PerfAnalysis.jsx — NOT 'Purchases conversion value' (f[8])
+const F_SPEND = 2, F_CONV_VAL = 12, F_NC = 9, DELIVERY = 0.76
 
 function computeMetrics(payload, lookbackDays) {
   const { ads, facts, days, meta } = payload
