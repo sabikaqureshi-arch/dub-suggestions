@@ -244,19 +244,33 @@ function stripSerial(name) { return name.replace(SERIAL_TAIL_RE, '') }
 
 // Replace the source language token (surrounded by _ or at boundaries)
 function swapLang(name, from, to) {
-  const esc = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return name.replace(new RegExp(`(^|_)${esc}(_|$)`, 'gi'), `$1${to}$2`)
+  const esc = from.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')
+  return name.replace(new RegExp('(^|_)' + esc + '(_|$)', 'gi'), '$1' + to.toLowerCase() + '$2')
+}
+
+// Tokenise a normalised ad name into comparable chunks (split on _ and /)
+function tokenise(name) { return name.split(/[_/]+/).filter(Boolean) }
+
+// Check if every token in `needles` appears as a subsequence in `haystack`
+function isSubsequence(needles, haystack) {
+  let i = 0
+  for (const h of haystack) { if (needles[i] === h) i++ }
+  return i === needles.length
 }
 
 // Given an original ad name + languages, find matching dubbed ad names in perf data.
 // Uses ALL ads (not lookback-filtered) so newly-live dubbed ads aren't missed.
+// Uses subsequence matching so extra narrative tokens (e.g. /science, /assurance)
+// added in the dubbed version don't break the match.
 function findAutoMatch(originalName, sourceLang, targetLang, allAdNames) {
   const base = stripSerial(swapLang(normDub(originalName), sourceLang, targetLang))
+  const baseTokens = tokenise(base)
   const matches = []
   for (const n of allAdNames) {
     const norm = normDub(n)
     if (!norm.includes('ai_dubbed_')) continue
-    if (stripSerial(norm.replace('ai_dubbed_', '')) === base) matches.push(n)
+    const dubbedTokens = tokenise(stripSerial(norm).replace(/\bai_dubbed\b/g, ''))
+    if (isSubsequence(baseTokens, dubbedTokens)) matches.push(n)
   }
   return matches
 }
