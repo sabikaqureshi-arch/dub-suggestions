@@ -80,7 +80,7 @@ router.get('/', async (req, res) => {
     // recorded in our tracker. Build a set of "serial|lang" pairs to block.
     const SERIAL_RE = /(\d{3,6})\s*$/
     function extractSerial(name) {
-      const m = String(name).toLowerCase().replace(/[\s_]+(si|bca)\s*$/, '').match(SERIAL_RE)
+      const m = String(name).toLowerCase().replace(/[\s_]+(si|bca)(\s*$|(?=[\s_]))/g, '').match(SERIAL_RE)
       return m ? m[1] : null
     }
     const alreadyDubbed = new Set()
@@ -232,6 +232,35 @@ router.post('/later', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
+// ── Auto-match helpers ────────────────────────────────────────────────────────
+// Normalize ai_dubbed_+ (handle accidental double underscores) and lowercase
+function normDub(name) {
+  return name.toLowerCase().replace(/ai_dubbed_+/g, 'ai_dubbed_')
+}
+
+// Strip trailing serial (3–6 digits) plus any si/bca suffixes in any order
+const SERIAL_TAIL_RE = /([_\s]+(si|bca))*[_\s]+\d{3,6}([_\s]+(si|bca))*\s*$/i
+function stripSerial(name) { return name.replace(SERIAL_TAIL_RE, '') }
+
+// Replace the source language token (surrounded by _ or at boundaries)
+function swapLang(name, from, to) {
+  const esc = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return name.replace(new RegExp(`(^|_)${esc}(_|$)`, 'gi'), `$1${to}$2`)
+}
+
+// Given an original ad name + languages, find matching dubbed ad names in perf data.
+// Uses ALL ads (not lookback-filtered) so newly-live dubbed ads aren't missed.
+function findAutoMatch(originalName, sourceLang, targetLang, allAdNames) {
+  const base = stripSerial(swapLang(normDub(originalName), sourceLang, targetLang))
+  const matches = []
+  for (const n of allAdNames) {
+    const norm = normDub(n)
+    if (!norm.includes('ai_dubbed_')) continue
+    if (stripSerial(norm.replace('ai_dubbed_', '')) === base) matches.push(n)
+  }
+  return matches
+}
+
 // ── GET /api/dub-suggestions/accepted ────────────────────────────────────────
 router.get('/accepted', async (_req, res) => {
   try {
@@ -240,28 +269,43 @@ router.get('/accepted', async (_req, res) => {
        FROM dub_tracker WHERE status IN ('accepted','dubbed') ORDER BY updated_at DESC`
     ).all()
 
-    // For dubbed rows, look up performance — non-fatal if perf data unavailable
-    const dubbedNames = rows.filter(r => r.dubbed_ad_name && r.dubbed_ad_name !== 'N/A').map(r => r.dubbed_ad_name)
     const dubbedPerf = {}
-    if (dubbedNames.length > 0) {
-      try {
-        const config = getDubConfig()
-        const payload = await getPerfData()
-        const metrics = computeMetrics(payload, config.lookback_days)
-        const byName = new Map(metrics.map(ad => [ad.n, ad]))
-        for (const name of dubbedNames) {
-          const m = byName.get(name)
-          dubbedPerf[name] = m ? { roas: m.roas, nc: m.nc, spend: m.spend, cac: m.cac } : null
+    const autoMatches = {}
+
+    try {
+      const config = getDubConfig()
+      const payload = await getPerfData()
+      const metrics = computeMetrics(payload, config.lookback_days)
+
+      // Perf lookup for already-dubbed rows
+      const byName = new Map(metrics.map(ad => [ad.n, ad]))
+      for (const r of rows) {
+        if (r.dubbed_ad_name && r.dubbed_ad_name !== 'N/A') {
+          const m = byName.get(r.dubbed_ad_name)
+          dubbedPerf[r.dubbed_ad_name] = m ? { roas: m.roas, nc: m.nc, spend: m.spend, cac: m.cac } : null
         }
-      } catch (perfErr) {
-        console.warn('[accepted] perf lookup failed, skipping:', perfErr.message)
       }
+
+      // Auto-match for pending accepted rows (no dubbed name yet)
+      const allAdNames = payload.ads.map(ad => ad.n)  // all ads, not lookback-filtered
+      const byNameLower = new Map(payload.ads.map(ad => [ad.n.toLowerCase(), ad]))
+      for (const r of rows) {
+        if (r.status !== 'accepted' || r.dubbed_ad_name) continue
+        const origAd = byNameLower.get(r.original_ad_name.toLowerCase())
+        const sourceLang = origAd?.language
+        if (!sourceLang) continue
+        const matches = findAutoMatch(r.original_ad_name, sourceLang, r.target_language, allAdNames)
+        if (matches.length > 0) autoMatches[r.id] = matches
+      }
+    } catch (perfErr) {
+      console.warn('[accepted] perf lookup failed, skipping:', perfErr.message)
     }
 
     res.json({
       accepted: rows.map(r => ({
         ...r,
         dubbed_perf: (r.dubbed_ad_name && r.dubbed_ad_name !== 'N/A') ? (dubbedPerf[r.dubbed_ad_name] ?? null) : null,
+        auto_match: autoMatches[r.id] ?? null,  // string[] of candidate dubbed ad names, or null
       }))
     })
   } catch (err) { res.status(500).json({ error: err.message }) }

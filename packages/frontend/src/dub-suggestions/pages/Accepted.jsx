@@ -188,6 +188,25 @@ export default function Accepted({ C }) {
                 </div>
               ) : (
                 <>
+                  {/* Auto-match banner — shown when not editing and no dubbed name yet */}
+                  {!editing[row.id] && row.auto_match && row.auto_match.length > 0 && (
+                    <div style={{ marginBottom: 10, padding: '10px 14px', background: C.green + '10', border: `1px solid ${C.green}40`, borderRadius: 8 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.1, textTransform: 'uppercase', color: C.green, marginBottom: 6 }}>
+                        Auto-detected from creative tracker
+                      </div>
+                      {row.auto_match.map(name => (
+                        <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: row.auto_match.length > 1 ? 6 : 0 }}>
+                          <div style={{ flex: 1, fontFamily: 'monospace', fontSize: 11, color: C.text, wordBreak: 'break-all' }}>{name}</div>
+                          <button
+                            onClick={() => { setInputs(i => ({ ...i, [row.id]: name })); setConfirming(c => ({ ...c, [row.id]: true })) }}
+                            style={{ padding: '5px 14px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: C.green, color: '#fff', whiteSpace: 'nowrap' }}>
+                            Confirm
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {confirming[row.id] ? (
                     <div style={{ padding: '12px 14px', background: C.bg, borderRadius: 8, border: `1px solid ${C.border}` }}>
                       <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Mark as dubbed?</div>
