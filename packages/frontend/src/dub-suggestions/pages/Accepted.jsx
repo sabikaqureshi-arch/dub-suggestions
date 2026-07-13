@@ -167,6 +167,11 @@ export default function Accepted({ C }) {
                   </div>
                   {row.dubbed_perf && row.dubbed_ad_name !== 'N/A' ? (() => {
                     const p = row.dubbed_perf
+                    if (p.spend < 500 || p.nc === 0) return (
+                      <div style={{ fontSize: 11, color: C.muted, padding: '6px 0', fontStyle: 'italic' }}>
+                        Live — insufficient spend to judge (₹{p.spend.toLocaleString('en-IN')} so far)
+                      </div>
+                    )
                     const roasPct = p.roas.toFixed(2) + '×'
                     const roasColor = p.roas >= 1 ? C.green : p.roas >= 0.6 ? '#F59E0B' : C.red
                     return (
