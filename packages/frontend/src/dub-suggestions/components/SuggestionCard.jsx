@@ -41,7 +41,7 @@ export default function SuggestionCard({ ad, targetLanguage, onReject, onRemove,
     background: bg || color + '15', color, border: `1px solid ${color}30`,
   })
 
-  const roasPct = (ad.roas * 100).toFixed(1) + '%'
+  const roasPct = ad.roas.toFixed(2) + '×'
   const roasColor = ad.roas >= 1 ? C.green : ad.roas >= 0.6 ? '#F59E0B' : C.red
 
   return (

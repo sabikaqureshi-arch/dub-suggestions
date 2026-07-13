@@ -167,7 +167,7 @@ export default function Accepted({ C }) {
                   </div>
                   {row.dubbed_perf && row.dubbed_ad_name !== 'N/A' ? (() => {
                     const p = row.dubbed_perf
-                    const roasPct = (p.roas * 100).toFixed(1) + '%'
+                    const roasPct = p.roas.toFixed(2) + '×'
                     const roasColor = p.roas >= 1 ? C.green : p.roas >= 0.6 ? '#F59E0B' : C.red
                     return (
                       <div style={{ display: 'flex', gap: 24, padding: '10px 14px', background: C.bg, borderRadius: 8, alignItems: 'center' }}>
