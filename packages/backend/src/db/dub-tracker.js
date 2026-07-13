@@ -50,7 +50,7 @@ const insertConfig = dubDb.prepare(`INSERT OR IGNORE INTO config (key, value) VA
 for (const [k, v] of [
   ['roas_threshold', '60'],
   ['nc_threshold',   '3'],
-  ['lookback_days',  '40'],
+  ['lookback_days',  '365'],
   ['snooze_days',    '7'],
   ['max_snoozes',    '3'],
 ]) insertConfig.run(k, v)

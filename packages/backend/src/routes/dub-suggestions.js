@@ -34,7 +34,7 @@ function computeMetrics(payload, lookbackDays) {
     const a = byAd.get(idx) || { spend: 0, conv: 0, nc: 0 }
     const roas = a.spend > 0 ? (a.conv * df) / a.spend : 0
     return { ...ad, spend: Math.round(a.spend), nc: Math.round(a.nc),
-      roas: Math.round(roas * 1000) / 1000, cac: a.nc > 0 ? Math.round(a.spend / a.nc) : 0 }
+      roas: Math.round(roas * 1000) / 1000, cac: a.nc > 0 ? Math.round(a.spend / (a.nc * df)) : 0 }
   })
 }
 
