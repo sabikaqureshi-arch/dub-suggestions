@@ -4,19 +4,31 @@ import { getRejected, undoReject } from '../api.js'
 export default function Rejected({ C }) {
   const [rows,       setRows]       = useState([])
   const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState(null)
   const [confirming, setConfirming] = useState(null)
+  const [undoError,  setUndoError]  = useState(null)
 
   useEffect(() => {
-    getRejected().then(d => setRows(d.rejected)).finally(() => setLoading(false))
+    getRejected()
+      .then(d => setRows(d.rejected))
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
   }, [])
 
   async function handleUndo(id) {
-    await undoReject(id)
-    setRows(prev => prev.filter(r => r.id !== id))
-    setConfirming(null)
+    setUndoError(null)
+    try {
+      await undoReject(id)
+      setRows(prev => prev.filter(r => r.id !== id))
+      setConfirming(null)
+    } catch (e) {
+      setUndoError(e.message)
+      setConfirming(null)
+    }
   }
 
   if (loading) return <div style={{ color: C.subtle, fontSize: 13, padding: '40px 0' }}>Loading…</div>
+  if (error) return <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '14px 18px', color: '#DC2626', fontSize: 13 }}><strong>Error:</strong> {error}</div>
   if (!rows.length) return (
     <div style={{ textAlign: 'center', padding: '60px 0', color: C.muted, fontSize: 13 }}>
       No rejected ads.
@@ -75,6 +87,7 @@ export default function Rejected({ C }) {
           </div>
         </div>
       ))}
+      {undoError && <div style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>{undoError}</div>}
     </div>
   )
 }

@@ -4,7 +4,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const DB_PATH = path.resolve(__dirname, '../../dub_tracker.db')
+// Allow the DB path to be overridden via env var for production persistent volumes
+const DB_PATH = process.env.DUB_TRACKER_DB_PATH || path.resolve(__dirname, '../../dub_tracker.db')
 
 export const dubDb = new DatabaseSync(DB_PATH)
 
@@ -82,11 +83,11 @@ const SEED = [
 const insertSeed = dubDb.prepare(`
   INSERT OR IGNORE INTO dub_tracker
     (id, original_ad_name, target_language, status, actioned_by, created_at, updated_at)
-  VALUES (?, ?, ?, 'accepted', ?, ?, ?)
+  VALUES (?, ?, ?, 'accepted', 'historical_import', ?, ?)
 `)
 for (const r of SEED) {
   const ts = r.date + 'T00:00:00.000Z'
-  insertSeed.run(randomUUID(), r.ad, r.lang, r.by, ts, ts)
+  insertSeed.run(randomUUID(), r.ad, r.lang, ts, ts)
 }
 
 export function getDubConfig() {

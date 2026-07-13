@@ -164,7 +164,10 @@ router.get('/', async (req, res) => {
 // ── POST /api/dub-suggestions/accept ─────────────────────────────────────────
 router.post('/accept', (req, res) => {
   const { original_ad_name, language } = req.body
-  if (!original_ad_name || !language) return res.status(400).json({ error: 'original_ad_name and language required' })
+  if (typeof original_ad_name !== 'string' || typeof language !== 'string' ||
+      !original_ad_name.trim() || !language.trim() ||
+      original_ad_name.length > 512 || language.length > 64)
+    return res.status(400).json({ error: 'original_ad_name and language required (max 512/64 chars)' })
   const user = req.user?.name || req.user?.email || 'unknown'
   try {
     const existing = dubDb.prepare(
@@ -175,7 +178,10 @@ router.post('/accept', (req, res) => {
       return res.json({ ok: true, idempotent: true, id: existing.id })
 
     const id = existing?.id || randomUUID()
-    const familyId = existing?.family_id || randomUUID()
+    // Reuse the family_id from any other language of the same source ad so deduplication works
+    const familyRow = existing?.family_id ? null :
+      dubDb.prepare('SELECT family_id FROM dub_tracker WHERE original_ad_name = ? AND family_id IS NOT NULL LIMIT 1').get(original_ad_name)
+    const familyId = existing?.family_id || familyRow?.family_id || randomUUID()
 
     if (existing) {
       dubDb.prepare(`UPDATE dub_tracker SET status='accepted', family_id=?, actioned_by=?, updated_at=datetime('now') WHERE id=?`).run(familyId, user, id)
@@ -191,7 +197,10 @@ router.post('/accept', (req, res) => {
 // ── POST /api/dub-suggestions/reject ─────────────────────────────────────────
 router.post('/reject', (req, res) => {
   const { original_ad_name, language, scope, reason } = req.body
-  if (!original_ad_name || !language) return res.status(400).json({ error: 'original_ad_name and language required' })
+  if (typeof original_ad_name !== 'string' || typeof language !== 'string' ||
+      !original_ad_name.trim() || !language.trim() ||
+      original_ad_name.length > 512 || language.length > 64)
+    return res.status(400).json({ error: 'original_ad_name and language required (max 512/64 chars)' })
   if (!scope || !['language', 'all'].includes(scope)) return res.status(400).json({ error: 'scope must be "language" or "all"' })
   if (!reason?.trim()) return res.status(400).json({ error: 'reason is required' })
   const user = req.user?.name || req.user?.email || 'unknown'
@@ -212,7 +221,10 @@ router.post('/reject', (req, res) => {
 // ── POST /api/dub-suggestions/later ──────────────────────────────────────────
 router.post('/later', (req, res) => {
   const { original_ad_name, language } = req.body
-  if (!original_ad_name || !language) return res.status(400).json({ error: 'original_ad_name and language required' })
+  if (typeof original_ad_name !== 'string' || typeof language !== 'string' ||
+      !original_ad_name.trim() || !language.trim() ||
+      original_ad_name.length > 512 || language.length > 64)
+    return res.status(400).json({ error: 'original_ad_name and language required (max 512/64 chars)' })
   const user = req.user?.name || req.user?.email || 'unknown'
   try {
     const config = getDubConfig()
@@ -417,6 +429,7 @@ export async function runAutoMatch(payload) {
       return isSubsequence(baseTokens, dubbedTokens)
     })
     if (matches.length !== 1) continue   // skip ambiguous or unmatched
+    if (!matches[0].toLowerCase().includes(r.target_language.toLowerCase())) continue  // safety: language must be in dubbed name
     update.run(matches[0], r.id)
     logDubAudit({ trackerId: r.id, userId: 'auto_match', actionType: 'mark_dubbed',
       previousState: r, newState: { status: 'dubbed', dubbed_ad_name: matches[0] } })

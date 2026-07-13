@@ -10,6 +10,7 @@ function daysSince(dateStr) {
 export default function Accepted({ C }) {
   const [rows,       setRows]       = useState([])
   const [loading,    setLoading]    = useState(true)
+  const [fetchError, setFetchError] = useState(null)
   const [inputs,     setInputs]     = useState({})
   const [errors,     setErrors]     = useState({})
   const [editing,    setEditing]    = useState({})
@@ -18,7 +19,10 @@ export default function Accepted({ C }) {
   const [statusTab,  setStatusTab]  = useState('pending') // 'pending' | 'dubbed'
 
   useEffect(() => {
-    getAccepted().then(d => setRows(d.accepted)).finally(() => setLoading(false))
+    getAccepted()
+      .then(d => setRows(d.accepted))
+      .catch(e => setFetchError(e.message))
+      .finally(() => setLoading(false))
   }, [])
 
   async function handleMarkDubbed(row) {
@@ -66,6 +70,7 @@ export default function Accepted({ C }) {
   const dubbedCount  = rows.filter(r => r.status === 'dubbed').length
 
   if (loading) return <div style={{ color: C.subtle, fontSize: 13, padding: '40px 0' }}>Loading…</div>
+  if (fetchError) return <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '14px 18px', color: '#DC2626', fontSize: 13 }}><strong>Error:</strong> {fetchError}</div>
   if (!rows.length) return (
     <div style={{ textAlign: 'center', padding: '60px 0', color: C.muted, fontSize: 13 }}>
       No accepted ads yet.
