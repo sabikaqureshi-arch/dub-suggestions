@@ -35,6 +35,9 @@ async function writeDiskCache(payload) {
   await fs.writeFile(CACHE_FILE, JSON.stringify(payload))
 }
 
+const rebuildCallbacks = []
+export function onPerfRebuild(cb) { rebuildCallbacks.push(cb) }
+
 async function rebuild() {
   if (building) return building            // coalesce concurrent rebuilds
   building = (async () => {
@@ -44,6 +47,7 @@ async function rebuild() {
     await writeDiskCache(payload)
     memCache = payload
     console.log(`[perf-analysis] rebuilt in ${((Date.now() - t0) / 1000).toFixed(1)}s (code ${CODE_HASH})`)
+    for (const cb of rebuildCallbacks) cb(payload).catch(e => console.error('[post-rebuild cb]', e.message))
     return payload
   })()
   try { return await building } finally { building = null }

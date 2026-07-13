@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { randomUUID } from 'crypto'
 import { dubDb, getDubConfig, logDubAudit } from '../db/dub-tracker.js'
-import { getSharedPerfData } from './perf-analysis.js'
+import { getSharedPerfData, onPerfRebuild } from './perf-analysis.js'
 
 const router = Router()
 
@@ -388,5 +388,44 @@ router.post('/undo-reject', (req, res) => {
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: err.message }) }
 })
+
+// ── Auto-match runner — called after every perf cache rebuild ─────────────────
+// Finds accepted rows without a dubbed_ad_name, matches them to ai_dubbed ads
+// in the payload, and writes single-confident matches directly to the DB.
+export async function runAutoMatch(payload) {
+  const allAdNames   = payload.ads.map(a => a.n)
+  const byNameLower  = new Map(payload.ads.map(a => [a.n.toLowerCase(), a]))
+  const dubbedAdNames = allAdNames.filter(n => n.toLowerCase().includes('ai_dubbed_'))
+
+  const pending = dubDb.prepare(
+    "SELECT id, original_ad_name, target_language FROM dub_tracker WHERE status='accepted' AND (dubbed_ad_name IS NULL OR dubbed_ad_name='')"
+  ).all()
+  if (!pending.length) return
+
+  const update = dubDb.prepare(
+    `UPDATE dub_tracker SET status='dubbed', dubbed_ad_name=?, actioned_by='auto_match', updated_at=datetime('now') WHERE id=?`
+  )
+
+  let filled = 0
+  for (const r of pending) {
+    const origAd = byNameLower.get(r.original_ad_name.toLowerCase())
+    if (!origAd?.language) continue
+    const base       = stripSerial(swapLang(normDub(r.original_ad_name), origAd.language, r.target_language))
+    const baseTokens = tokenise(base)
+    const matches    = dubbedAdNames.filter(n => {
+      const dubbedTokens = tokenise(stripSerial(normDub(n)).replace(/\bai_dubbed\b/g, ''))
+      return isSubsequence(baseTokens, dubbedTokens)
+    })
+    if (matches.length !== 1) continue   // skip ambiguous or unmatched
+    update.run(matches[0], r.id)
+    logDubAudit({ trackerId: r.id, userId: 'auto_match', actionType: 'mark_dubbed',
+      previousState: r, newState: { status: 'dubbed', dubbed_ad_name: matches[0] } })
+    filled++
+  }
+  if (filled) console.log(`[dub-auto-match] filled ${filled} dubbed ad name${filled > 1 ? 's' : ''}`)
+}
+
+// Register so every perf rebuild triggers auto-match automatically
+onPerfRebuild(runAutoMatch)
 
 export default router
